@@ -1,0 +1,4 @@
+#include <jni.h>
+#include <vector>
+#include <cmath>
+extern "C" JNIEXPORT jfloatArray JNICALL Java_dev_multiview_mesh_EnhancedReconstruction_nativeVisualHull(JNIEnv* e,jobject,jobjectArray masks,jint w,jint h,jint views,jint grid,jint smooth){std::vector<float> out;for(int z=0;z<grid;z++)for(int y=0;y<grid;y++)for(int x=0;x<grid;x++){int support=0;for(int v=0;v<views;v++){auto a=(jbyteArray)e->GetObjectArrayElement(masks,v);auto p=e->GetByteArrayElements(a,nullptr);float ang=6.2831853f*v/views,nx=(x+.5f)/grid*2-1,nz=(z+.5f)/grid*2-1;int u=(int)((nx*cos(ang)+nz*sin(ang)+1)*.5f*(w-1)),yy=(int)((1-(y+.5f)/grid)*(h-1));if(u>=0&&u<w&&yy>=0&&yy<h&&(unsigned char)p[yy*w+u]>127)support++;e->ReleaseByteArrayElements(a,p,JNI_ABORT);e->DeleteLocalRef(a);}if(support>=views-1){out.push_back((x+.5f)/grid*2-1);out.push_back((y+.5f)/grid*2-1);out.push_back((z+.5f)/grid*2-1);}}auto r=e->NewFloatArray(out.size());e->SetFloatArrayRegion(r,0,out.size(),out.data());return r;}

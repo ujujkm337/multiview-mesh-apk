@@ -1,106 +1,59 @@
 name: Build enhanced APK
-on:
-  push:
-  workflow_dispatch:
-permissions:
-  contents: write
+on: [push, workflow_dispatch]
+permissions: {contents: write}
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Restore archived source
-        run: |
-          cat source.part* | base64 -d > source.zip
-          python - <<'PY'
-          import os,struct,zlib
-          b=open('source.zip','rb').read();p=0
-          while p+30<=len(b) and b[p:p+4]==b'PK\x03\x04':
-            _,_,f,m,_,_,_,cs,us,nl,xl=struct.unpack_from('<IHHHHHIIIHH',b,p); n=b[p+30:p+30+nl].decode(); st=p+30+nl+xl; raw=b[st:st+cs]; out=raw if m==0 else zlib.decompress(raw,-15)
-            if n.endswith('/'): os.makedirs(n,exist_ok=True)
-            else: os.makedirs(os.path.dirname(n) or '.',exist_ok=True);open(n,'wb').write(out)
-            p=st+cs
-          os.chmod('gradlew',0o755)
-          PY
-      - name: Add enhanced settings and reconstruction
-        run: |
-          sed -i 's/android:scaleType="fillCenter"/android:scaleType="centerCrop"/g' app/src/main/res/layout/activity_camera.xml
-          sed -i 's/android:textColor="white"/android:textColor="@android:color\/white"/g' app/src/main/res/layout/activity_viewer.xml
-          python - <<'PY'
-          p='app/src/main/java/dev/multiview/mesh/CameraActivity.kt';s=open(p).read();s=s.replace('Capture ${angle.label}\n          Center the object and keep distance consistent','Capture ${angle.label}\\nCenter the object and keep distance consistent');open(p,'w').write(s)
-          p='app/src/main/AndroidManifest.xml';s=open(p).read();s=s.replace('<application','<uses-permission android:name="android.permission.INTERNET"/>\n    <application',1) if 'android.permission.INTERNET' not in s else s;s=s.replace('</application>','<activity android:name=".EnhancedSettingsActivity" android:exported="false"/>\n    </application>');open(p,'w').write(s)
-          p='app/src/main/java/dev/multiview/mesh/MainActivity.kt';s=open(p).read();needle='setContentView(R.layout.activity_main)';inject='''setContentView(R.layout.activity_main); android.widget.Button(this).apply { text="Enhanced settings"; setOnClickListener { startActivity(android.content.Intent(this@MainActivity, EnhancedSettingsActivity::class.java)) }; addContentView(this, android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT)) }''';assert needle in s;s=s.replace(needle,inject,1);open(p,'w').write(s)
-          PY
-          cat > app/src/main/java/dev/multiview/mesh/EnhancedSettingsActivity.kt <<'KT'
-          package dev.multiview.mesh
-          import android.app.*
-          import android.os.*
-          import android.widget.*
-          import java.io.*
-          import java.net.HttpURLConnection
-          import java.net.URL
-          import java.security.MessageDigest
-          class EnhancedSettingsActivity: Activity(){
-            private lateinit var status:TextView; private lateinit var progress:ProgressBar
-            private val prefs by lazy{getSharedPreferences("enhanced",MODE_PRIVATE)}
-            private val file by lazy{File(filesDir,"models/enhanced-model-v1.json")}
-            override fun onCreate(b:Bundle?){super.onCreate(b); title="Enhanced reconstruction"; val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(32,32,32,32)}; val toggle=Switch(this).apply{text="Enhanced reconstruction (visual hull, not LRM)";isChecked=prefs.getBoolean("enabled",false);setOnCheckedChangeListener{_,v->prefs.edit().putBoolean("enabled",v).apply()}}; status=TextView(this);progress=ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal).apply{max=100}; val download=Button(this).apply{text="Download public package";setOnClickListener{download()}};val remove=Button(this).apply{text="Delete package";setOnClickListener{if(file.delete())show("Package deleted") else show("No local package")}};box.addView(toggle);box.addView(TextView(this).apply{text="Uses 3-frame temporal segmentation, 96³ native visual hull, denser mesh and 2048px texture after the verified package is stored locally."});box.addView(progress);box.addView(status);box.addView(download);box.addView(remove);setContentView(box);show(if(file.exists())"Package ready — local processing" else "Package not downloaded")}
-            private fun show(s:String){status.text=s}
-            private fun download(){Thread{try{file.parentFile?.mkdirs();val tmp=File(file.path+".part");val c=URL(URL).openConnection() as HttpURLConnection;c.connectTimeout=15000;c.readTimeout=30000;c.connect();if(c.responseCode !in 200..299)error("HTTP ${c.responseCode}");val total=c.contentLengthLong;MessageDigest.getInstance("SHA-256").let{md->c.inputStream.use{i->tmp.outputStream().use{o->val buf=ByteArray(32768);var n:Int;var done=0L;while(i.read(buf).also{n=it}>0){o.write(buf,0,n);md.update(buf,0,n);done+=n;runOnUiThread{progress.progress=if(total>0)(done*100/total).toInt() else 0;show("Downloading ${progress.progress}%")}}}};val got=md.digest().joinToString(""){"%02x".format(it)};if(got!=SHA){tmp.delete();error("SHA-256 mismatch: $got")};if(!tmp.renameTo(file))error("Cannot store package")};runOnUiThread{progress.progress=100;show("Verified. Ready for fully local enhanced processing")}}catch(e:Exception){runOnUiThread{show("Download failed: ${e.message}")}}}.start()}
-            companion object{const val URL="https://github.com/ujujkm337/multiview-mesh-apk/releases/download/enhanced-model-v1/enhanced-model-v1.json";const val SHA="6982f4432a9ac9a5acf8901d27b023696789f0d7d63be0ff3e80e0e2edfd3545"}
-          }
-          KT
-          cat > app/src/main/java/dev/multiview/mesh/EnhancedReconstruction.kt <<'KT'
-          package dev.multiview.mesh
-          import android.content.Context
-          import android.graphics.Bitmap
-          object EnhancedReconstruction{
-            init{System.loadLibrary("enhanced_visual_hull")}
-            fun enabled(c:Context)=c.getSharedPreferences("enhanced",0).getBoolean("enabled",false)&&java.io.File(c.filesDir,"models/enhanced-model-v1.json").exists()
-            fun temporalConsensus(masks:List<ByteArray>):ByteArray{require(masks.size>=3);return ByteArray(masks[0].size){i->if(masks.count{(it[i].toInt() and 255)>127}>=2)255.toByte() else 0}}
-            external fun nativeVisualHull(masks:Array<ByteArray>,width:Int,height:Int,views:Int,grid:Int,smoothing:Int):FloatArray
-            fun reconstruct(masks:Array<ByteArray>,w:Int,h:Int)=nativeVisualHull(masks,w,h,masks.size,96,4)
-          }
-          KT
-          cat > app/src/main/cpp/enhanced_visual_hull.cpp <<'CPP'
-          #include <jni.h>
-          #include <vector>
-          #include <cmath>
-          extern "C" JNIEXPORT jfloatArray JNICALL Java_dev_multiview_mesh_EnhancedReconstruction_nativeVisualHull(JNIEnv* e,jobject,jobjectArray masks,jint w,jint h,jint views,jint grid,jint smooth){std::vector<float> out;out.reserve(grid*grid);for(int z=0;z<grid;z++)for(int y=0;y<grid;y++)for(int x=0;x<grid;x++){int support=0;for(int v=0;v<views;v++){auto a=(jbyteArray)e->GetObjectArrayElement(masks,v);auto p=e->GetByteArrayElements(a,nullptr);float ang=6.2831853f*v/views;float nx=(x+0.5f)/grid*2-1,nz=(z+0.5f)/grid*2-1;int u=(int)((nx*cos(ang)+nz*sin(ang)+1)*.5f*(w-1));int yy=(int)((1-(y+0.5f)/grid)*(h-1));if(u>=0&&u<w&&yy>=0&&yy<h&&(unsigned char)p[yy*w+u]>127)support++;e->ReleaseByteArrayElements(a,p,JNI_ABORT);e->DeleteLocalRef(a);}if(support>=views-1){out.push_back((x+.5f)/grid*2-1);out.push_back((y+.5f)/grid*2-1);out.push_back((z+.5f)/grid*2-1);}}auto r=e->NewFloatArray(out.size());e->SetFloatArrayRegion(r,0,out.size(),out.data());return r;}
-          CPP
-          cat >> app/src/main/cpp/CMakeLists.txt <<'CM'
-          add_library(enhanced_visual_hull SHARED enhanced_visual_hull.cpp)
-          target_link_libraries(enhanced_visual_hull log)
-          CM
-          mkdir -p app/src/main/assets
-      - name: Generate bundled model and public package
-        run: |
-          pip install onnx==1.17.0 numpy==2.1.3
-          python tools/generate_model.py
-          cat > enhanced-model-v1.json <<'EOF'
-          {"format":"multiview-enhanced-config-v1","name":"Enhanced visual hull package","description":"Public offline configuration and lightweight priors for higher-resolution multi-frame visual-hull reconstruction. Not an LRM.","version":1,"segmentation":{"temporal_frames":3,"consensus_threshold":0.58,"edge_refinement":true},"visual_hull":{"grid_resolution":96,"silhouette_supersampling":2,"smoothing_iterations":4,"min_component_voxels":24},"mesh":{"target_faces":120000,"laplacian_lambda":0.32,"texture_size":2048}}
-          EOF
-          test "$(sha256sum enhanced-model-v1.json|cut -d' ' -f1)" = 6982f4432a9ac9a5acf8901d27b023696789f0d7d63be0ff3e80e0e2edfd3545
-      - uses: actions/setup-java@v4
-        with: {distribution: temurin, java-version: '17'}
-      - uses: android-actions/setup-android@v3
-      - run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;26.3.11579264" "cmake;3.22.1"
-      - uses: gradle/actions/setup-gradle@v4
-        with: {gradle-version: '8.10.2'}
-      - name: Build APK
-        run: gradle assembleDebug --stacktrace | tee gradle-build.log
-      - name: Publish releases
-        env: {GH_TOKEN: '${{ github.token }}'}
-        run: |
-          gh release delete enhanced-model-v1 --cleanup-tag -y || true
-          gh release create enhanced-model-v1 enhanced-model-v1.json --title "Enhanced reconstruction package v1" --notes "Public SHA-256 verified package for optional local 3-frame segmentation and 96^3 native visual-hull processing. This is not an LRM."
-          cp app/build/outputs/apk/debug/app-debug.apk MultiViewMesh-enhanced-debug.apk
-          sha256sum MultiViewMesh-enhanced-debug.apk > APK-SHA256.txt
-          wc -c MultiViewMesh-enhanced-debug.apk > APK-SIZE.txt
-          gh release delete v1.2-enhanced --cleanup-tag -y || true
-          gh release create v1.2-enhanced MultiViewMesh-enhanced-debug.apk APK-SHA256.txt APK-SIZE.txt --title "MultiViewMesh v1.2 enhanced" --notes "Optional verified downloadable package; after download all processing is local. Enhanced mode is a denser multi-frame visual hull, not a full LRM."
-      - name: Record result
-        if: always()
-        run: |
-          { tail -n 80 gradle-build.log 2>/dev/null||true; echo SHA=$(sha256sum MultiViewMesh-enhanced-debug.apk 2>/dev/null||true); echo SIZE=$(wc -c < MultiViewMesh-enhanced-debug.apk 2>/dev/null||true); } > build-report.txt
-          git config user.name github-actions;git config user.email github-actions@github.com;git add build-report.txt;git commit -m 'Record enhanced APK build [skip actions]'||true;git pull --rebase||true;git push||true
+ build:
+  runs-on: ubuntu-latest
+  steps:
+   - uses: actions/checkout@v4
+   - name: Restore and patch source
+     run: |
+      cat source.part* | base64 -d > source.zip
+      python - <<'PY'
+      import os,struct,zlib
+      b=open('source.zip','rb').read();p=0
+      while p+30<=len(b) and b[p:p+4]==b'PK\x03\x04':
+       _,_,f,m,_,_,_,cs,us,nl,xl=struct.unpack_from('<IHHHHHIIIHH',b,p);n=b[p+30:p+30+nl].decode();st=p+30+nl+xl;raw=b[st:st+cs];out=raw if m==0 else zlib.decompress(raw,-15)
+       if n.endswith('/'):os.makedirs(n,exist_ok=True)
+       else:os.makedirs(os.path.dirname(n) or '.',exist_ok=True);open(n,'wb').write(out)
+       p=st+cs
+      os.chmod('gradlew',0o755)
+      p='app/src/main/java/dev/multiview/mesh/CameraActivity.kt';s=open(p).read().replace('Capture ${angle.label}\n          Center the object and keep distance consistent','Capture ${angle.label}\\nCenter the object and keep distance consistent');open(p,'w').write(s)
+      p='app/src/main/AndroidManifest.xml';s=open(p).read();s=s.replace('<application','<uses-permission android:name="android.permission.INTERNET"/>\n <application',1) if 'android.permission.INTERNET' not in s else s;s=s.replace('</application>','<activity android:name=".EnhancedSettingsActivity" android:exported="false"/>\n</application>');open(p,'w').write(s)
+      p='app/src/main/java/dev/multiview/mesh/MainActivity.kt';s=open(p).read();n='setContentView(R.layout.activity_main)';r='setContentView(R.layout.activity_main); android.widget.Button(this).apply { text="Enhanced settings"; setOnClickListener { startActivity(android.content.Intent(this@MainActivity, EnhancedSettingsActivity::class.java)) }; this@MainActivity.addContentView(this, android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT)) }';assert n in s;s=s.replace(n,r,1);open(p,'w').write(s)
+      PY
+      cp enhanced-src/*.kt app/src/main/java/dev/multiview/mesh/
+      cp enhanced-src/enhanced_visual_hull.cpp app/src/main/cpp/
+      printf '\nadd_library(enhanced_visual_hull SHARED enhanced_visual_hull.cpp)\ntarget_link_libraries(enhanced_visual_hull log)\n' >> app/src/main/cpp/CMakeLists.txt
+      sed -i 's/android:scaleType="fillCenter"/android:scaleType="centerCrop"/g' app/src/main/res/layout/activity_camera.xml
+      sed -i 's/android:textColor="white"/android:textColor="@android:color\/white"/g' app/src/main/res/layout/activity_viewer.xml
+   - uses: actions/setup-python@v5
+     with: {python-version: '3.11'}
+   - name: Models
+     run: |
+      pip install onnx==1.17.0 numpy==2.1.3
+      python tools/generate_model.py
+      printf '%s\n' '{"format":"multiview-enhanced-config-v1","name":"Enhanced visual hull package","description":"Public offline configuration and lightweight priors for higher-resolution multi-frame visual-hull reconstruction. Not an LRM.","version":1,"segmentation":{"temporal_frames":3,"consensus_threshold":0.58,"edge_refinement":true},"visual_hull":{"grid_resolution":96,"silhouette_supersampling":2,"smoothing_iterations":4,"min_component_voxels":24},"mesh":{"target_faces":120000,"laplacian_lambda":0.32,"texture_size":2048}}' > enhanced-model-v1.json
+      test $(sha256sum enhanced-model-v1.json|cut -d' ' -f1) = 6982f4432a9ac9a5acf8901d27b023696789f0d7d63be0ff3e80e0e2edfd3545
+   - uses: actions/setup-java@v4
+     with: {distribution: temurin, java-version: '17'}
+   - uses: android-actions/setup-android@v3
+   - run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;26.3.11579264" "cmake;3.22.1"
+   - uses: gradle/actions/setup-gradle@v4
+     with: {gradle-version: '8.10.2'}
+   - name: Build
+     run: gradle assembleDebug --stacktrace 2>&1 | tee gradle-build.log
+   - name: Publish
+     env: {GH_TOKEN: '${{ github.token }}'}
+     run: |
+      cp app/build/outputs/apk/debug/app-debug.apk MultiViewMesh-enhanced-debug.apk
+      sha256sum MultiViewMesh-enhanced-debug.apk > APK-SHA256.txt; wc -c MultiViewMesh-enhanced-debug.apk > APK-SIZE.txt
+      gh release delete enhanced-model-v1 --cleanup-tag -y || true
+      gh release create enhanced-model-v1 enhanced-model-v1.json --title 'Enhanced reconstruction package v1' --notes 'Public SHA-256 verified package. 3-frame segmentation and 96^3 native visual hull; not an LRM.'
+      gh release delete v1.2-enhanced --cleanup-tag -y || true
+      gh release create v1.2-enhanced MultiViewMesh-enhanced-debug.apk APK-SHA256.txt APK-SIZE.txt --title 'MultiViewMesh v1.2 enhanced' --notes 'Optional verified package; fully local after download. Denser multi-frame visual hull, not an LRM.'
+   - name: Report
+     if: always()
+     run: |
+      { tail -n 160 gradle-build.log 2>/dev/null||true; echo SHA=$(sha256sum MultiViewMesh-enhanced-debug.apk 2>/dev/null||true); echo SIZE=$(wc -c < MultiViewMesh-enhanced-debug.apk 2>/dev/null||true); } > build-report.txt
+      git config user.name github-actions;git config user.email github-actions@github.com;git add build-report.txt;git commit -m 'Record enhanced build [skip actions]'||true;git pull --rebase||true;git push||true
