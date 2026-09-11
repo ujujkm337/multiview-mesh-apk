@@ -36,6 +36,10 @@ jobs:
           print(f'recovered {count} entries; stopped at offset {p}/{len(b)} signature={b[p:p+4]!r}')
           assert os.path.exists('settings.gradle.kts') and os.path.exists('app/build.gradle.kts')
           PY
+      - name: Fix Android resource values
+        run: |
+          sed -i 's/android:scaleType="fillCenter"/android:scaleType="centerCrop"/g' app/src/main/res/layout/activity_camera.xml
+          sed -i 's/android:textColor="white"/android:textColor="@android:color\/white"/g' app/src/main/res/layout/activity_viewer.xml
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
