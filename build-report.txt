@@ -7,16 +7,17 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:dataBindingMergeDependencyArtifactsDebug
 > Task :app:generateDebugResources
 > Task :app:packageDebugResources
-> Task :app:mergeDebugResources
 > Task :app:generateDebugBuildConfig
+> Task :app:mergeDebugResources
 > Task :app:parseDebugLocalResources
-> Task :app:mapDebugSourceSetPaths
 > Task :app:checkDebugAarMetadata
 > Task :app:dataBindingGenBaseClassesDebug
+> Task :app:mapDebugSourceSetPaths
 > Task :app:createDebugCompatibleScreenManifests
 > Task :app:extractDeepLinksDebug
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
 > Task :app:javaPreCompileDebug
 > Task :app:mergeDebugShaders
 > Task :app:compileDebugShaders NO-SOURCE
@@ -25,10 +26,9 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:desugarDebugFileDependencies
 > Task :app:compressDebugAssets
 > Task :app:checkDebugDuplicateClasses
-> Task :app:configureCMakeDebug[arm64-v8a]
-> Task :app:processDebugManifestForPackage
-> Task :app:mergeLibDexDebug
 > Task :app:processDebugResources
+> Task :app:configureCMakeDebug[arm64-v8a]
+> Task :app:mergeLibDexDebug
 > Task :app:buildCMakeDebug[arm64-v8a]
 > Task :app:mergeDebugJniLibFolders
 > Task :app:mergeDebugNativeLibs
@@ -37,43 +37,19 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:writeDebugSigningConfigVersions
 > Task :app:stripDebugDebugSymbols
 > Task :app:mergeExtDexDebug
+> Task :app:compileDebugKotlin
+> Task :app:compileDebugJavaWithJavac
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:processDebugJavaRes
+> Task :app:mergeProjectDexDebug
+> Task :app:mergeDebugJavaResource
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_4-1789144846806.json
 
-> Task :app:compileDebugKotlin FAILED
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:15:184 Unresolved reference 'EXTRA_VIEW'.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:15:278 Syntax error: Expecting '"'.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:15:278 Syntax error: Incorrect template entry: .
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:16:1 Unresolved reference 'Center'.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:16:19 Syntax error: An object expression cannot bind a name.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:16:23 Syntax error: Expecting a class body.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:16:28 Unresolved reference 'distance'.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:16:37 Unsupported [literal prefixes and suffixes].
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:16:146 Syntax error: Expecting '"'.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:16:146 Syntax error: Incorrect template entry: .
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:17:5 Modifier 'private' is not applicable to 'local function'.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:18:5 Modifier 'private' is not applicable to 'local function'.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:18:374 Unresolved reference 'EXTRA_VIEW'.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:19:5 Unresolved reference 'companion'.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:19:14 Syntax error: Unexpected tokens (use ';' to separate expressions on the same line).
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:19:24 Const 'val' is only allowed on top level, in named objects, or in companion objects.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/CameraActivity.kt:20:2 Syntax error: Missing '}.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/MainActivity.kt:22:201 Unresolved reference 'EXTRA_VIEW'.
-e: file:///home/runner/work/multiview-mesh-apk/multiview-mesh-apk/app/src/main/java/dev/multiview/mesh/MainActivity.kt:32:129 Unresolved reference 'EXTRA_VIEW'.
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_4-1789144632451.json
-
-FAILURE: Build failed with an exception.
-
-* What went wrong:
-Execution failed for task ':app:compileDebugKotlin'.
-> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
-   > Compilation error. See log for more details
-
-* Try:
-> Run with --stacktrace option to get the stack trace.
-> Run with --info or --debug option to get more log output.
-> Run with --scan to get full insights.
-> Get more help at https://help.gradle.org.
-
-BUILD FAILED in 23s
-33 actionable tasks: 33 executed
-SHA=
-SIZE=
+BUILD SUCCESSFUL in 31s
+41 actionable tasks: 41 executed
+SHA=19070c547b2614d4eefeb22334c96698842cd389220e623eb9c39e032f22685d MultiViewMesh-enhanced-debug.apk
+SIZE=24918899
