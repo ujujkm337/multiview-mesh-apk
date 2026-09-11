@@ -1,111 +1,32 @@
-name: Build offline APK
+name: Inspect Android source
 on:
   push:
   workflow_dispatch:
 permissions:
   contents: write
 jobs:
-  build:
+  inspect:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Restore source from local ZIP records
-        id: restore
-        continue-on-error: true
+      - name: Restore source
         run: |
-          set -o pipefail
           cat source.part* | base64 -d > source.zip
-          python - <<'PY' 2>&1 | tee restore.log
-          import os, struct, zlib
-          b=open('source.zip','rb').read(); p=0; count=0
-          while p+30 <= len(b) and b[p:p+4] == b'PK\x03\x04':
-              sig,ver,flags,method,mt,md,crc,cs,us,nl,xl=struct.unpack_from('<IHHHHHIIIHH',b,p)
-              name=b[p+30:p+30+nl].decode('utf-8')
-              start=p+30+nl+xl; raw=b[start:start+cs]
-              if flags & 8: raise RuntimeError('data descriptor unsupported: '+name)
-              if method==0: out=raw
-              elif method==8: out=zlib.decompress(raw,-15)
-              else: raise RuntimeError(f'compression {method}: {name}')
-              if len(out)!=us: raise RuntimeError(f'size mismatch: {name}')
-              if name.endswith('/'): os.makedirs(name,exist_ok=True)
-              else:
-                  os.makedirs(os.path.dirname(name) or '.',exist_ok=True)
-                  open(name,'wb').write(out)
-                  if name=='gradlew': os.chmod(name,0o755)
-              count+=1; p=start+cs
-          print(f'recovered {count} entries; stopped at offset {p}/{len(b)} signature={b[p:p+4]!r}')
-          assert os.path.exists('settings.gradle.kts') and os.path.exists('app/build.gradle.kts')
-          PY
-      - name: Fix source validation errors
-        run: |
-          sed -i 's/android:scaleType="fillCenter"/android:scaleType="centerCrop"/g' app/src/main/res/layout/activity_camera.xml
-          sed -i 's/android:textColor="white"/android:textColor="@android:color\/white"/g' app/src/main/res/layout/activity_viewer.xml
           python - <<'PY'
-          p='app/src/main/java/dev/multiview/mesh/CameraActivity.kt'
-          s=open(p).read()
-          old='''findViewById<android.widget.TextView>(R.id.guide).text="Capture ${angle.label}
-          Center the object and keep distance consistent"'''
-          new=r'''findViewById<android.widget.TextView>(R.id.guide).text="Capture ${angle.label}\nCenter the object and keep distance consistent"'''
-          assert old in s
-          open(p,'w').write(s.replace(old,new))
+          import os,struct,zlib
+          b=open('source.zip','rb').read();p=0
+          while p+30<=len(b) and b[p:p+4]==b'PK\x03\x04':
+            _,_,f,m,_,_,_,cs,us,nl,xl=struct.unpack_from('<IHHHHHIIIHH',b,p); n=b[p+30:p+30+nl].decode(); st=p+30+nl+xl; raw=b[st:st+cs]; out=raw if m==0 else zlib.decompress(raw,-15)
+            if n.endswith('/'): os.makedirs(n,exist_ok=True)
+            else: os.makedirs(os.path.dirname(n) or '.',exist_ok=True);open(n,'wb').write(out)
+            p=st+cs
           PY
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Generate bundled ONNX model
-        id: model
-        continue-on-error: true
+      - name: Publish source dump
         run: |
-          set -o pipefail
-          (pip install onnx==1.17.0 numpy==2.1.3 && python tools/generate_model.py) 2>&1 | tee model.log
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Install Android toolchain
-        id: sdk
-        continue-on-error: true
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;26.3.11579264" "cmake;3.22.1"
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.10.2'
-      - name: Assemble debug APK
-        id: assemble
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          gradle assembleDebug --stacktrace 2>&1 | tee gradle-build.log
-      - name: Write build report
-        if: always()
-        run: |
-          {
-            echo "commit=${GITHUB_SHA}"
-            echo "restore=${{ steps.restore.outcome }}"
-            echo "model=${{ steps.model.outcome }}"
-            echo "sdk=${{ steps.sdk.outcome }}"
-            echo "assemble=${{ steps.assemble.outcome }}"
-            echo "===== CAMERA SOURCE ====="; nl -ba app/src/main/java/dev/multiview/mesh/CameraActivity.kt | head -n 80 || true
-            echo "===== RESTORE ====="; cat restore.log 2>/dev/null || true
-            echo "===== MODEL ====="; tail -n 100 model.log 2>/dev/null || true
-            echo "===== GRADLE ====="; tail -n 220 gradle-build.log 2>/dev/null || true
-            echo "===== OUTPUTS ====="; find app/build/outputs -type f 2>/dev/null || true
-          } > build-report.txt
+          for f in app/src/main/java/dev/multiview/mesh/MainActivity.kt app/src/main/java/dev/multiview/mesh/ModelDownloader.kt app/src/main/java/dev/multiview/mesh/InferencePipeline.kt app/src/main/cpp/mesh_native.cpp app/src/main/res/layout/activity_main.xml app/build.gradle.kts; do echo "===== $f ====="; cat "$f"; done > source-dump.txt
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add build-report.txt
-          git commit -m "Record APK build result [skip actions]" || true
-          git pull --rebase || true
-          git push || true
-      - name: Publish APK release
-        if: ${{ hashFiles('app/build/outputs/apk/debug/app-debug.apk') != '' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release delete offline-v1 --cleanup-tag -y || true
-          gh release create offline-v1 app/build/outputs/apk/debug/app-debug.apk --title "Offline MultiViewMesh APK" --notes "Self-contained debug APK with bundled ONNX model."
-      - uses: actions/upload-artifact@v4
-        if: ${{ hashFiles('app/build/outputs/apk/debug/app-debug.apk') != '' }}
-        with:
-          name: MultiViewMesh-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          git add -f source-dump.txt
+          git commit -m 'Dump source for enhanced mode [skip actions]'
+          git pull --rebase
+          git push
