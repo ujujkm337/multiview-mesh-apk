@@ -9,12 +9,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Restore source
+      - name: Restore source from local ZIP records
         id: restore
         continue-on-error: true
         run: |
           set -o pipefail
-          (set -x; ls -l source.part*; cat source.part* | base64 -d > source.zip; ls -l source.zip; unzip -t source.zip; unzip -o source.zip) 2>&1 | tee restore.log
+          cat source.part* | base64 -d > source.zip
+          python - <<'PY' 2>&1 | tee restore.log
+          import os, struct, zlib
+          b=open('source.zip','rb').read(); p=0; count=0
+          while p+30 <= len(b) and b[p:p+4] == b'PK\x03\x04':
+              sig,ver,flags,method,mt,md,crc,cs,us,nl,xl=struct.unpack_from('<IHHHHHIIIHH',b,p)
+              name=b[p+30:p+30+nl].decode('utf-8')
+              start=p+30+nl+xl; raw=b[start:start+cs]
+              if flags & 8: raise RuntimeError('data descriptor unsupported: '+name)
+              if method==0: out=raw
+              elif method==8: out=zlib.decompress(raw,-15)
+              else: raise RuntimeError(f'compression {method}: {name}')
+              if len(out)!=us: raise RuntimeError(f'size mismatch: {name}')
+              if name.endswith('/'): os.makedirs(name,exist_ok=True)
+              else:
+                  os.makedirs(os.path.dirname(name) or '.',exist_ok=True)
+                  open(name,'wb').write(out)
+                  if name=='gradlew': os.chmod(name,0o755)
+              count+=1; p=start+cs
+          print(f'recovered {count} entries; stopped at offset {p}/{len(b)} signature={b[p:p+4]!r}')
+          assert os.path.exists('settings.gradle.kts') and os.path.exists('app/build.gradle.kts')
+          PY
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -51,14 +72,10 @@ jobs:
             echo "model=${{ steps.model.outcome }}"
             echo "sdk=${{ steps.sdk.outcome }}"
             echo "assemble=${{ steps.assemble.outcome }}"
-            echo "===== RESTORE ====="
-            cat restore.log 2>/dev/null || true
-            echo "===== MODEL ====="
-            tail -n 100 model.log 2>/dev/null || true
-            echo "===== GRADLE ====="
-            tail -n 180 gradle-build.log 2>/dev/null || true
-            echo "===== OUTPUTS ====="
-            find app/build/outputs -type f 2>/dev/null || true
+            echo "===== RESTORE ====="; cat restore.log 2>/dev/null || true
+            echo "===== MODEL ====="; tail -n 100 model.log 2>/dev/null || true
+            echo "===== GRADLE ====="; tail -n 220 gradle-build.log 2>/dev/null || true
+            echo "===== OUTPUTS ====="; find app/build/outputs -type f 2>/dev/null || true
           } > build-report.txt
           git config user.name github-actions
           git config user.email github-actions@github.com
