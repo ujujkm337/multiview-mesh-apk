@@ -1,47 +1,3 @@
-commit=9c32912e71b9d9873739e1c753dae1f1a1a53e27
-restore=success
-model=success
-sdk=success
-assemble=success
-===== CAMERA SOURCE =====
-     1	package dev.multiview.mesh
-     2	
-     3	import android.os.Bundle
-     4	import androidx.appcompat.app.AppCompatActivity
-     5	import androidx.camera.core.CameraSelector
-     6	import androidx.camera.core.ImageCapture
-     7	import androidx.camera.core.ImageCaptureException
-     8	import androidx.camera.core.Preview
-     9	import androidx.camera.lifecycle.ProcessCameraProvider
-    10	import androidx.core.content.ContextCompat
-    11	import java.io.File
-    12	
-    13	class CameraActivity : AppCompatActivity() {
-    14	    private var imageCapture: ImageCapture?=null; private lateinit var angle: CaptureView
-    15	    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContentView(R.layout.activity_camera); angle=CaptureView.valueOf(intent.getStringExtra(EXTRA_VIEW)!!); findViewById<android.widget.TextView>(R.id.guide).text="Capture ${angle.label}\nCenter the object and keep distance consistent"; startCamera(); findViewById<android.widget.Button>(R.id.capture).setOnClickListener{capture()} }
-    16	    private fun startCamera(){ val future=ProcessCameraProvider.getInstance(this); future.addListener({ val provider=future.get(); val preview=Preview.Builder().build().also{it.setSurfaceProvider(findViewById<androidx.camera.view.PreviewView>(R.id.preview).surfaceProvider)}; imageCapture=ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).setJpegQuality(95).build(); provider.unbindAll(); provider.bindToLifecycle(this,CameraSelector.DEFAULT_BACK_CAMERA,preview,imageCapture)},ContextCompat.getMainExecutor(this)) }
-    17	    private fun capture(){ val dir=File(filesDir,"captures").apply{mkdirs()}; val file=File(dir,"${angle.ordinal}.jpg"); imageCapture?.takePicture(ImageCapture.OutputFileOptions.Builder(file).build(),ContextCompat.getMainExecutor(this),object:ImageCapture.OnImageSavedCallback{override fun onImageSaved(r:ImageCapture.OutputFileResults){setResult(RESULT_OK,intent.putExtra(EXTRA_VIEW,angle.name));finish()} override fun onError(e:ImageCaptureException){findViewById<android.widget.TextView>(R.id.guide).text="Capture failed: ${e.message}"}}) }
-    18	    companion object { const val EXTRA_VIEW="capture_view" }
-    19	}
-===== RESTORE =====
-recovered 41 entries; stopped at offset 14931/18586 signature=b'PK\x01\x02'
-===== MODEL =====
-Collecting onnx==1.17.0
-  Downloading onnx-1.17.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (16 kB)
-Collecting numpy==2.1.3
-  Downloading numpy-2.1.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (62 kB)
-Collecting protobuf>=3.20.2 (from onnx==1.17.0)
-  Downloading protobuf-7.36.1-cp310-abi3-manylinux2014_x86_64.whl.metadata (595 bytes)
-Downloading onnx-1.17.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (16.0 MB)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.0/16.0 MB 60.8 MB/s  0:00:00
-Downloading numpy-2.1.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (16.3 MB)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.3/16.3 MB 57.1 MB/s  0:00:00
-Downloading protobuf-7.36.1-cp310-abi3-manylinux2014_x86_64.whl (343 kB)
-Installing collected packages: protobuf, numpy, onnx
-
-Successfully installed numpy-2.1.3 onnx-1.17.0 protobuf-7.36.1
-433
-===== GRADLE =====
 Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
@@ -54,9 +10,9 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:mergeDebugResources
 > Task :app:generateDebugBuildConfig
 > Task :app:parseDebugLocalResources
+> Task :app:mapDebugSourceSetPaths
 > Task :app:checkDebugAarMetadata
 > Task :app:dataBindingGenBaseClassesDebug
-> Task :app:mapDebugSourceSetPaths
 > Task :app:createDebugCompatibleScreenManifests
 > Task :app:extractDeepLinksDebug
 > Task :app:processDebugMainManifest
@@ -70,8 +26,8 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:desugarDebugFileDependencies
 > Task :app:compressDebugAssets
 > Task :app:checkDebugDuplicateClasses
-> Task :app:configureCMakeDebug[arm64-v8a]
 > Task :app:processDebugResources
+> Task :app:configureCMakeDebug[arm64-v8a]
 > Task :app:mergeLibDexDebug
 > Task :app:buildCMakeDebug[arm64-v8a]
 > Task :app:mergeDebugJniLibFolders
@@ -80,26 +36,12 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:writeDebugAppMetadata
 > Task :app:writeDebugSigningConfigVersions
 > Task :app:stripDebugDebugSymbols
+> Task :app:mergeExtDexDebug
 
 > Task :app:compileDebugKotlin
-e: The daemon has terminated unexpectedly on startup attempt #1 with error code: 0. The daemon process output:
-    1. Kotlin compile daemon is ready
 
-> Task :app:mergeExtDexDebug
-> Task :app:compileDebugJavaWithJavac
-> Task :app:dexBuilderDebug
-> Task :app:mergeDebugGlobalSynthetics
-> Task :app:processDebugJavaRes
-> Task :app:mergeProjectDexDebug
-> Task :app:mergeDebugJavaResource
-> Task :app:packageDebug
-> Task :app:createDebugApkListingFileRedirect
-> Task :app:assembleDebug
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1789143318779.json
-
-BUILD SUCCESSFUL in 32s
-41 actionable tasks: 41 executed
-===== OUTPUTS =====
-app/build/outputs/logs/manifest-merger-debug-report.txt
-app/build/outputs/apk/debug/output-metadata.json
-app/build/outputs/apk/debug/app-debug.apk
+> Task :app:compileDebugKotlin FAILED
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_5-1789144052532.json
+33 actionable tasks: 33 executed
+SHA=
+SIZE=
