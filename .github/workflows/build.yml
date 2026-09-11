@@ -40,7 +40,15 @@ jobs:
         run: |
           sed -i 's/android:scaleType="fillCenter"/android:scaleType="centerCrop"/g' app/src/main/res/layout/activity_camera.xml
           sed -i 's/android:textColor="white"/android:textColor="@android:color\/white"/g' app/src/main/res/layout/activity_viewer.xml
-          sed -i 's/"distance"/\\"distance\\"/g' app/src/main/java/dev/multiview/mesh/CameraActivity.kt
+          python - <<'PY'
+          p='app/src/main/java/dev/multiview/mesh/CameraActivity.kt'
+          s=open(p).read()
+          old='''findViewById<android.widget.TextView>(R.id.guide).text="Capture ${angle.label}
+          Center the object and keep distance consistent"'''
+          new=r'''findViewById<android.widget.TextView>(R.id.guide).text="Capture ${angle.label}\nCenter the object and keep distance consistent"'''
+          assert old in s
+          open(p,'w').write(s.replace(old,new))
+          PY
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
