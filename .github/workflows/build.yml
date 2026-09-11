@@ -14,9 +14,7 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          cat source.part* | base64 -d > source.zip
-          unzip -t source.zip
-          unzip -o source.zip
+          (set -x; ls -l source.part*; cat source.part* | base64 -d > source.zip; ls -l source.zip; unzip -t source.zip; unzip -o source.zip) 2>&1 | tee restore.log
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -25,8 +23,7 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          pip install onnx==1.17.0 numpy==2.1.3
-          python tools/generate_model.py
+          (pip install onnx==1.17.0 numpy==2.1.3 && python tools/generate_model.py) 2>&1 | tee model.log
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -42,7 +39,9 @@ jobs:
       - name: Assemble debug APK
         id: assemble
         continue-on-error: true
-        run: gradle assembleDebug --stacktrace 2>&1 | tee gradle-build.log
+        run: |
+          set -o pipefail
+          gradle assembleDebug --stacktrace 2>&1 | tee gradle-build.log
       - name: Write build report
         if: always()
         run: |
@@ -52,13 +51,20 @@ jobs:
             echo "model=${{ steps.model.outcome }}"
             echo "sdk=${{ steps.sdk.outcome }}"
             echo "assemble=${{ steps.assemble.outcome }}"
+            echo "===== RESTORE ====="
+            cat restore.log 2>/dev/null || true
+            echo "===== MODEL ====="
+            tail -n 100 model.log 2>/dev/null || true
+            echo "===== GRADLE ====="
+            tail -n 180 gradle-build.log 2>/dev/null || true
+            echo "===== OUTPUTS ====="
             find app/build/outputs -type f 2>/dev/null || true
-            tail -n 160 gradle-build.log 2>/dev/null || true
           } > build-report.txt
           git config user.name github-actions
           git config user.email github-actions@github.com
           git add build-report.txt
           git commit -m "Record APK build result [skip actions]" || true
+          git pull --rebase || true
           git push || true
       - name: Publish APK release
         if: ${{ hashFiles('app/build/outputs/apk/debug/app-debug.apk') != '' }}
