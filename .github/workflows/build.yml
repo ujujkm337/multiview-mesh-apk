@@ -36,10 +36,11 @@ jobs:
           print(f'recovered {count} entries; stopped at offset {p}/{len(b)} signature={b[p:p+4]!r}')
           assert os.path.exists('settings.gradle.kts') and os.path.exists('app/build.gradle.kts')
           PY
-      - name: Fix Android resource values
+      - name: Fix source validation errors
         run: |
           sed -i 's/android:scaleType="fillCenter"/android:scaleType="centerCrop"/g' app/src/main/res/layout/activity_camera.xml
           sed -i 's/android:textColor="white"/android:textColor="@android:color\/white"/g' app/src/main/res/layout/activity_viewer.xml
+          sed -i 's/"distance"/\\"distance\\"/g' app/src/main/java/dev/multiview/mesh/CameraActivity.kt
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -76,6 +77,7 @@ jobs:
             echo "model=${{ steps.model.outcome }}"
             echo "sdk=${{ steps.sdk.outcome }}"
             echo "assemble=${{ steps.assemble.outcome }}"
+            echo "===== CAMERA SOURCE ====="; nl -ba app/src/main/java/dev/multiview/mesh/CameraActivity.kt | head -n 80 || true
             echo "===== RESTORE ====="; cat restore.log 2>/dev/null || true
             echo "===== MODEL ====="; tail -n 100 model.log 2>/dev/null || true
             echo "===== GRADLE ====="; tail -n 220 gradle-build.log 2>/dev/null || true
